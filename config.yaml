@@ -1,0 +1,115 @@
+# Rival Radar configuration
+# Secrets are NEVER stored here — they come from environment variables
+# (GROQ_API_KEY, EPO_OPS_KEY, EPO_OPS_SECRET, optional OPENALEX_API_KEY).
+# See README.
+
+# The target startup (name + what it does) is not stored here: it is entered
+# when each run starts, or passed as --target-name / --target-description.
+
+# Optional but recommended: your email. Sent to OpenAlex and EPO, which both
+# treat requests that identify a contact better (EPO is less likely to block).
+contact_email: ""
+
+# Manually supplied partial rival list (optional). Auto-discovery expands it,
+# and also searches around the target, so this can be left empty: []
+# openalex_institution_id is optional: if blank it is resolved by name search
+# each run. Set it when name resolution picks the wrong organisation (or none).
+seed_rivals:
+#  - name: "Rival One"
+#    openalex_institution_id: ""
+#  - name: "Rival Two"
+#    openalex_institution_id: ""
+
+# Small-startup filter: exclude any organisation with more than this many
+# patents (proxy for "too big" — incumbents, universities). Tune later.
+small_startup_filter:
+  max_patents: 20
+  # Second size signal for organisations known to OpenAlex (catches incumbents
+  # whose EPO applicant name differs from their OpenAlex name).
+  max_works: 500
+
+# EPO patent API etiquette. OPS blocks clients that fire requests quickly
+# ("robot detected"); 10 seconds between requests is known to be safe.
+epo:
+  min_interval: 10
+  retries: 3
+
+# Auto-discovery tunables.
+discovery:
+  # Cap how many new rivals a single run may add.
+  max_new_rivals: 25
+  # Candidates put through the size filter (best first) to fill those slots.
+  # Each check is one EPO request, so this bounds a run's EPO time.
+  max_candidates: 40
+  # Minimum co-occurrence weight before a candidate is considered.
+  min_cooccurrence: 2
+  # A technology search matching at most this many patents is "niche": one
+  # patent from it is enough for a candidate, and niche matches rank first.
+  niche_query_max_hits: 50
+  # Have the LLM drop candidates that clearly aren't competitors (suppliers,
+  # incidental filers, people) before the size filter. Needs GROQ_API_KEY.
+  relevance_check: true
+  # OpenAlex institution types eligible as rivals. Universities ("education"),
+  # nonprofits, facilities etc. are never startups.
+  institution_types: ["company"]
+  # Topic search (papers and patents on the target's topic) looks back this far.
+  topic_years: 2
+  # Shared-CPC search: how many of the most common CPC subgroups to search,
+  # skipping any with more than cpc_max_hits patents in the window (too broad).
+  cpc_groups: 2
+  cpc_max_hits: 500
+  # Patent offices searched for discovery (EP = European, US, WO = PCT
+  # international filings, plus the GB/FR/DE national offices where European
+  # startups often file first). [] searches all, which is dominated by Chinese
+  # national filings.
+  patent_offices: ["EP", "US", "WO", "GB", "FR", "DE"]
+
+# How far back each source looks when collecting signals.
+lookback_days: 7
+
+# Signal sources. Optional sources fail soft and never break a run.
+sources:
+  arxiv: true
+  openalex: true
+  epo: true
+  careers: false   # optional, best-effort; off by default
+
+# arXiv has no reliable affiliation field, so papers are found via a rival's
+# known researchers (from OpenAlex). Names collide across fields, so a paper
+# only counts for a rival when at least this many of its researchers co-author.
+arxiv:
+  min_author_overlap: 2
+  max_authors_per_rival: 10
+
+# LLM relevance pass (Groq).
+llm:
+  model: "qwen/qwen3.8-27b"
+  # Max items the relevance pass keeps for the brief.
+  max_items: 12
+  # Max diff items sent to the LLM (hires/patents first, then most recent).
+  max_input_items: 60
+  # Groq rate-limit etiquette: seconds between calls, and the size (tokens) of
+  # each discovery relevance-check request. Waits are automatic when the
+  # per-minute token budget runs low.
+  min_interval: 2
+  screen_batch_tokens: 2500
+  # Each reply is capped at max_output_tokens, and replies in any minute stay
+  # within output_tokens_per_minute (Groq's on-demand output limit; raise it
+  # if your Groq plan allows more).
+  max_output_tokens: 600
+  output_tokens_per_minute: 1000
+
+# Hiring signal: a researcher counts as a hire if their first year at a rival
+# is within this many years of today and they were at another org before.
+hiring:
+  max_join_age_years: 1
+
+# Output.
+output:
+  dir: "output"
+  max_pages: 2
+
+# Local state.
+storage:
+  db_path: "rivalradar.sqlite"
+  snapshot_dir: "snapshots"

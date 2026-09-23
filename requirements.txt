@@ -1,0 +1,12 @@
+# Core
+PyYAML>=6.0
+requests>=2.31
+
+# LLM relevance pass
+groq>=0.11
+
+# PDF output
+reportlab>=4.0
+
+# Env loading (optional convenience; secrets still read from real env)
+python-dotenv>=1.0
